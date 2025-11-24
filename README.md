@@ -1,179 +1,39 @@
 Vagrant Multi-VM Environment
 
-This project provisions a complete multi-tier application stack using Vagrant + VirtualBox.
-It creates five CentOS Stream 9 VMs, each assigned a specific service:
+This project sets up a multi-machine local development environment using Vagrant and VirtualBox. It provisions five virtual machines (VMs) that simulate a multi-tier application stack:
 
-Nginx (reverse proxy)
+web01: Nginx reverse proxy
 
-Tomcat (Java app server)
+app01: Tomcat application server
 
-MariaDB (Database)
+rmq01: RabbitMQ message broker
 
-Memcached (Caching layer)
+mc01: Memcached caching server
 
-RabbitMQ (Message broker)
+db01: MariaDB database
 
-This environment replicates a production-like microservices setup for local development and testing.
+The VMs communicate over a private network to replicate a realistic deployment environment.
 
-🚀 Prerequisites
+Prerequisites
 
-Before using this project, install:
+Make sure the following are installed on your system:
 
 VirtualBox
 
 Vagrant
 
-Recommended plugin:
+Recommended Vagrant plugin for managing hosts:
 
 vagrant plugin install vagrant-hostmanager
 
-
-This plugin automatically updates /etc/hosts on your host and VMs for easier communication (web01 → 192.168.56.x etc.)
-
-🖥️ Virtual Machines Overview
-
-All VMs use the base box:
-
-eurolinux-vagrant/centos-stream-9
-
-Hostname	IP Address	Memory	Description	Provision Script
-web01	192.168.56.11	1024MB	Nginx Reverse Proxy	web01.sh
-app01	192.168.56.12	4096MB	Tomcat + Java WAR Deployment	app01.sh
-rmq01	192.168.56.13	1024MB	RabbitMQ Server	rmq01.sh
-mc01	192.168.56.14	1024MB	Memcached Server	mc01.sh
-db01	192.168.56.15	2048MB	MariaDB Database	db01.sh
-▶️ Usage
-Start all VMs
-vagrant up
-
-Start one VM
-vagrant up web01
-
-SSH into a VM
-vagrant ssh <hostname>
-# Example
-vagrant ssh app01
-
-Re-provision a VM
-vagrant provision
-# or
-vagrant provision app01
-
-Stop all VMs
-vagrant halt
-
-Destroy all VMs
-vagrant destroy -f
-
-📦 Provision Scripts (Full Descriptions)
-
-Below is a summary of each provisioning script in your environment.
-
-🔵 1. app01.sh — Tomcat + Java App Deployment
-
-This script:
-
-Installs Java 11, Git, Maven, and Wget
-
-Downloads and installs Tomcat 9.0.75
-
-Creates a systemd service for Tomcat
-
-Clones the application source from GitHub
-
-Overwrites application.properties with correct hosts and credentials
-
-Runs:
-
-mvn install
-
-
-Deploys vprofile-v2.war as ROOT.war to Tomcat
-
-Restarts Tomcat
-
-Purpose: This VM is your main Application Server.
-
-🔵 2. db01.sh — MariaDB Database Setup
-
-This script:
-
-Installs MariaDB + dependencies
-
-Starts and enables MariaDB service
-
-Creates:
-
-Database: accounts
-
-User: admin with password admin123
-
-Grants full privileges
-
-Imports db_backup.sql from your GitHub repo
-
-Restarts MariaDB
-
-Purpose: Hosts your database and initial seed data.
-
-🔵 3. mc01.sh – Memcached Installation
-
-This script:
-
-Installs Memcached
-
-Starts and enables the service
-
-Opens port 11211/tcp in firewall
-
-Provides Memcached configuration information
-
-Purpose: Provides caching service used by the app.
-
-🔵 4. rmq01.sh – RabbitMQ Installation
-
-This script:
-
-Adds necessary RabbitMQ repositories
-
-Installs Erlang + RabbitMQ Server
-
-Enables RabbitMQ and management plugin
-
-Creates:
-
-user: admin
-pass: admin123
-
-
-Opens ports:
-
-5672/tcp (AMQP)
-
-15672/tcp (management console)
-
-Purpose: Provides messaging/queue service for your application.
-
-🔵 5. web01.sh — Nginx Reverse Proxy
-
-This script:
-
-Installs Nginx
-
-Enables firewall for ports 80 & 443
-
-Removes default site
-
-Creates a reverse proxy:
-
-http://192.168.56.12:8080/
-
-
-Enables the site and restarts Nginx
-
-Purpose: Acts as the public entry point to your Tomcat application.
-
-🧩 Architecture Overview
+Virtual Machines Overview
+Hostname	IP Address	Memory	Role / Provision Script
+web01	192.168.56.10	800MB	Nginx reverse proxy (provision_web.sh)
+app01	192.168.56.11	1024MB	Tomcat application server (provision_app.sh)
+rmq01	192.168.56.12	1024MB	RabbitMQ server (provision_rmq.sh)
+mc01	192.168.56.13	900MB	Memcached caching server (provision_mc.sh)
+db01	192.168.56.14	1024MB	MariaDB server (provision_db.sh)
+Architecture Diagram
             +--------------------+
             |     web01 (NGINX)  |
             | 192.168.56.11:80   |
@@ -191,18 +51,62 @@ Purpose: Acts as the public entry point to your Tomcat application.
        | MariaDB  | | Memcache| |RabbitMQ|
        +----------+ +---------+ +--------+
 
-📖 Conclusion
 
-This Vagrant environment gives you a full production-like stack locally:
+Explanation:
 
-Reverse Proxy (Nginx)
+web01 receives external requests and forwards them to app01 (Tomcat).
 
-Application Layer (Tomcat + WAR)
+app01 connects to db01 (MariaDB) for persistent data, mc01 (Memcached) for caching, and rmq01 (RabbitMQ) for messaging.
 
-Database Layer (MariaDB)
+Provisioning Scripts Overview
 
-Caching Layer (Memcached)
+Each VM is provisioned with a shell script located in the ./scripts folder.
 
-Messaging Layer (RabbitMQ)
+Script Name	Purpose / What it Does
+provision_web.sh	Installs NGINX, configures it as a reverse proxy to app01, and opens firewall ports 80/443.
+provision_app.sh	Installs Java, Maven, and Tomcat, clones the application source code, builds it with Maven, and deploys the .war to Tomcat. Also sets up host entries for VM communication.
+provision_db.sh	Installs MariaDB, creates the accounts database, configures users and privileges, restores the database backup, and ensures MariaDB starts on boot.
+provision_mc.sh	Installs Memcached, starts the service, enables it on boot, and opens firewall port 11211.
+provision_rmq.sh	Installs Erlang and RabbitMQ, enables the management plugin, creates an admin user, and opens RabbitMQ ports (5672 for AMQP, 15672 for Management UI).
+Usage
+Start all VMs
+vagrant up
 
-It is ideal for development, testing, and learning multi-tier DevOps setups.
+Start a specific VM
+vagrant up web01
+
+SSH into a VM
+vagrant ssh <hostname>
+# Example:
+vagrant ssh app01
+
+Re-provision a VM
+vagrant provision
+# or for a specific VM
+vagrant provision app01
+
+Stop all VMs
+vagrant halt
+
+Destroy all VMs
+vagrant destroy -f
+
+Vagrant Configuration
+
+All VM configurations are defined in Vagrantfile:
+
+Sets VM box, hostname, IP address, and RAM
+
+Defines provision scripts for each VM
+
+Example for app01:
+
+config.vm.define "app01" do |app|
+  app.vm.box = "eurolinux-vagrant/centos-stream-9"
+  app.vm.hostname = "app"
+  app.vm.network "private_network", ip: "192.168.56.11"
+  app.vm.provider "virtualbox" do |vb|
+    vb.memory = 1024
+  end
+  app.vm.provision "shell", path: "./scripts/provision_app.sh"
+end
