@@ -1,112 +1,126 @@
-Vagrant Multi-VM Environment
+Vagrant Multi-VM Development Environment with Automated Provisioning Scripts
 
-This project sets up a multi-machine local development environment using Vagrant and VirtualBox. It provisions five virtual machines (VMs) that simulate a multi-tier application stack:
+This project provides a fully automated multi-machine local development environment using Vagrant and VirtualBox, designed for testing and development of web applications with supporting services like databases, caching, and message brokers.
 
-web01: Nginx reverse proxy
+The environment consists of five virtual machines, each with a specific role, network configuration, and dedicated provisioning script to automate setup and configuration.
 
-app01: Tomcat application server
+Overview
 
-rmq01: RabbitMQ message broker
+Managing a complex development environment with multiple services can be time-consuming and error-prone. This project solves that problem by:
 
-mc01: Memcached caching server
+Using Vagrant to define and manage multiple virtual machines in a single configuration.
 
-db01: MariaDB database
+Automating the setup of each VM using shell scripts.
 
-The VMs communicate over a private network to replicate a realistic deployment environment.
+Providing a reproducible and consistent environment that can be quickly brought up, modified, or destroyed.
+
+Ensuring all VMs can communicate with each other using private network IPs, managed automatically with recommended plugins.
+
+By leveraging scripts for provisioning, all software installation, configuration, and service setup are automated, reducing manual intervention and making the environment fully reproducible.
 
 Prerequisites
 
-Make sure the following are installed on your system:
+Ensure your system has the following installed:
 
 VirtualBox
+ – to run virtual machines
 
 Vagrant
+ – to orchestrate VMs
 
-Recommended Vagrant plugin for managing hosts:
+Recommended Plugin
+
+For automatic management of /etc/hosts and VM hostname resolution, install:
 
 vagrant plugin install vagrant-hostmanager
 
-Virtual Machines Overview
-Hostname	IP Address	Memory	Role / Provision Script
-web01	192.168.56.10	800MB	Nginx reverse proxy (provision_web.sh)
-app01	192.168.56.11	1024MB	Tomcat application server (provision_app.sh)
-rmq01	192.168.56.12	1024MB	RabbitMQ server (provision_rmq.sh)
-mc01	192.168.56.13	900MB	Memcached caching server (provision_mc.sh)
-db01	192.168.56.14	1024MB	MariaDB server (provision_db.sh)
-Architecture Diagram
-            +--------------------+
-            |     web01 (NGINX)  |
-            | 192.168.56.11:80   |
-            +---------+----------+
-                      |
-                      v
-            +--------------------+
-            |   app01 (Tomcat)   |
-            | 192.168.56.12:8080 |
-            +----------+---------+
-             |         |         |
-             |         |         |
-       +-----+----+ +--+-----+ +-------+
-       |  db01    | | mc01   | | rmq01 |
-       | MariaDB  | | Memcache| |RabbitMQ|
-       +----------+ +---------+ +--------+
 
+This allows seamless communication between VMs without manually editing hosts files.
 
-Explanation:
+Virtual Machines
 
-web01 receives external requests and forwards them to app01 (Tomcat).
+The environment consists of five VMs, all running CentOS Stream 9 (eurolinux-vagrant/centos-stream-9):
 
-app01 connects to db01 (MariaDB) for persistent data, mc01 (Memcached) for caching, and rmq01 (RabbitMQ) for messaging.
+Hostname	IP Address	Memory	Role / Provisioning Script
+web01	192.168.56.11	1024MB	Web Server (web01.sh)
+app01	192.168.56.12	4096MB	Application Server (app01.sh)
+rmq01	192.168.56.13	1024MB	RabbitMQ Server (rmq01.sh)
+mc01	192.168.56.14	1024MB	Memcached Server (mc01.sh)
+db01	192.168.56.15	2048MB	Database Server (db01.sh)
+Automation with Scripts
 
-Provisioning Scripts Overview
+Each VM is provisioned using a dedicated shell script located in the project root:
 
-Each VM is provisioned with a shell script located in the ./scripts folder.
+Web Server (web01.sh): Installs Nginx, configures reverse proxy, and sets up firewall rules.
 
-Script Name	Purpose / What it Does
-provision_web.sh	Installs NGINX, configures it as a reverse proxy to app01, and opens firewall ports 80/443.
-provision_app.sh	Installs Java, Maven, and Tomcat, clones the application source code, builds it with Maven, and deploys the .war to Tomcat. Also sets up host entries for VM communication.
-provision_db.sh	Installs MariaDB, creates the accounts database, configures users and privileges, restores the database backup, and ensures MariaDB starts on boot.
-provision_mc.sh	Installs Memcached, starts the service, enables it on boot, and opens firewall port 11211.
-provision_rmq.sh	Installs Erlang and RabbitMQ, enables the management plugin, creates an admin user, and opens RabbitMQ ports (5672 for AMQP, 15672 for Management UI).
+Application Server (app01.sh): Installs Java, Maven, Tomcat, and sets up deployment directories for web applications.
+
+RabbitMQ Server (rmq01.sh): Installs and configures RabbitMQ with default users and permissions.
+
+Memcached Server (mc01.sh): Installs Memcached and configures it to be accessible from other VMs.
+
+Database Server (db01.sh): Installs MariaDB, creates databases, users, and configures network access.
+
+Using scripts ensures that all VMs are set up consistently every time, eliminating manual configuration errors and saving setup time.
+
 Usage
-Start all VMs
+Bringing Up the Environment
+
+To start all VMs:
+
 vagrant up
 
-Start a specific VM
+
+To start a specific VM (e.g., web01):
+
 vagrant up web01
 
-SSH into a VM
+Accessing VMs
+
+SSH into any VM with:
+
 vagrant ssh <hostname>
-# Example:
+
+
+Example:
+
 vagrant ssh app01
 
-Re-provision a VM
-vagrant provision
-# or for a specific VM
-vagrant provision app01
+Stopping the Environment
 
-Stop all VMs
+To stop all running VMs:
+
 vagrant halt
 
-Destroy all VMs
-vagrant destroy -f
 
-Vagrant Configuration
+To completely remove all VMs and reset the environment:
 
-All VM configurations are defined in Vagrantfile:
+vagrant destroy
 
-Sets VM box, hostname, IP address, and RAM
+Re-Provisioning
 
-Defines provision scripts for each VM
+Since all VM setup is automated via scripts, you can re-run the provisioning scripts at any time without destroying the VMs:
 
-Example for app01:
+vagrant provision
 
-config.vm.define "app01" do |app|
-  app.vm.box = "eurolinux-vagrant/centos-stream-9"
-  app.vm.hostname = "app"
-  app.vm.network "private_network", ip: "192.168.56.11"
-  app.vm.provider "virtualbox" do |vb|
-    vb.memory = 1024
-  end
-  app.vm.provision "shell", path: "./scripts/provision_app.sh"
-end
+
+Or for a specific VM:
+
+vagrant provision db01
+
+
+This will reapply all configurations, install missing packages, or update services according to the scripts.
+
+Benefits of Script-Based Automation
+
+Consistency: Every VM is set up in exactly the same way every time.
+
+Speed: New environments can be provisioned quickly.
+
+Reproducibility: Easy to destroy and recreate the environment for testing or updates.
+
+Ease of Use: Minimal manual steps required; everything is automated via scripts.
+
+Summary
+
+This project provides a robust, automated, and reproducible local development environment with multiple VMs for web, application, messaging, caching, and database services. By using Vagrant with dedicated provisioning scripts, setup and configuration are fully automated, making it easy to deploy, test, and develop complex multi-service applications locally.
